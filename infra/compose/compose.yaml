@@ -48,17 +48,13 @@ services:
     volumes:
       - ../../apps/backend:/app
       - ../../data/uploads:/app/data/uploads
-    command: >
-      sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: ["api-dev"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       qdrant:
-        condition: service_started
-      otel-collector:
         condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8000/health/ready"]
@@ -84,8 +80,7 @@ services:
     volumes:
       - ../../apps/backend:/app
       - ../../data/uploads:/app/data/uploads
-    command: >
-      sh -c "celery -A app.workers.celery_app.celery_app worker -Q ingestion,evals,default -l info"
+    command: ["worker"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -121,8 +116,7 @@ services:
     volumes:
       - ../../apps/backend:/app
       - ../../data/uploads:/app/data/uploads
-    command: >
-      sh -c "celery -A app.workers.celery_app.celery_app beat -l info"
+    command: ["beat"]
     depends_on:
       postgres:
         condition: service_healthy

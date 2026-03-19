@@ -10,12 +10,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl wget git \
     && rm -rf /var/lib/apt/lists/*
 
+# ---- dev stage: includes dev dependencies + hot reload -------------
+FROM base AS dev
 COPY . /app
 RUN pip install --upgrade pip setuptools wheel && \
     pip install -e .[dev]
+RUN chmod +x /app/entrypoint.sh
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["api-dev"]
 
-FROM base AS dev
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
+# ---- runtime stage: production dependencies only -------------------
 FROM base AS runtime
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+COPY . /app
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install -e .
+RUN chmod +x /app/entrypoint.sh
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["api"]

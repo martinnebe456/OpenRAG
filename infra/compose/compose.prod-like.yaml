@@ -1,21 +1,38 @@
+# Production-like overrides — use with:
+#   docker compose -f compose.yaml -f compose.prod-like.yaml up -d
+#
+# Inherits ALL services from compose.yaml and overrides only what differs
+# for a production-like deployment (runtime stages, no hot-reload, etc.).
+
 services:
   frontend:
     build:
       target: runtime
-    volumes: []
-    environment:
-      NGINX_PORT: "80"
+    volumes: []                         # no source mount — use baked image
     ports:
-      - "${FRONTEND_PORT:-5173}:80"
+      - "${FRONTEND_PORT:-80}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   backend:
     build:
       target: runtime
-    command: >
-      sh -c "alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    volumes:
+      - ../../data/uploads:/app/data/uploads
+    command: ["api"]                     # entrypoint.sh runs migrations + uvicorn (no --reload)
 
   worker:
     build:
       target: runtime
+    volumes:
+      - ../../data/uploads:/app/data/uploads
+    command: ["worker"]
 
+  scheduler:
+    build:
+      target: runtime
+    volumes: []
+    command: ["beat"]

@@ -94,5 +94,12 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     settings = Settings()
     if settings.app_env != "test" and not settings.secrets_master_key:
-        raise ValueError("APP_SECRETS_MASTER_KEY must be set")
+        raise ValueError(
+            "APP_SECRETS_MASTER_KEY must be set. "
+            'Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+        )
+    if settings.app_env != "test" and settings.secrets_master_key:
+        from app.core.crypto import validate_fernet_key
+
+        validate_fernet_key(settings.secrets_master_key)
     return settings
