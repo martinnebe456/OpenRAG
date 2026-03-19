@@ -24,6 +24,7 @@ class ProjectListResponse(BaseModel):
 
 class ProjectCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
+    owner_user_id: str = Field(min_length=1, max_length=64)
     slug: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=4000)
 
@@ -64,3 +65,15 @@ class ProjectMemberUpdateRequest(BaseModel):
     role: str | None = Field(default=None, pattern="^(viewer|contributor|manager)$")
     is_active: bool | None = None
 
+
+class ProjectAssignableUserResponse(BaseModel):
+    id: str
+    username: str
+    email: str
+    display_name: str
+    is_active: bool
+
+
+class ProjectAssignableUserListResponse(BaseModel):
+    items: list[ProjectAssignableUserResponse]
+    total: int

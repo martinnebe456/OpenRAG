@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, select
+from sqlalchemy import and_, case, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Project, ProjectMembership, User
@@ -40,11 +40,17 @@ class ProjectService:
         *,
         actor: User,
         name: str,
+        owner_user_id: str,
         slug: str | None,
         description: str | None,
     ) -> Project:
         if not self.access.is_admin(actor):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create projects")
+        owner = self.db.get(User, owner_user_id)
+        if owner is None:
+            raise HTTPException(status_code=404, detail="Owner user not found")
+        if not owner.is_active:
+            raise HTTPException(status_code=400, detail="Owner user must be active")
         project_slug = _slugify(slug or name)
         self._ensure_unique_slug(project_slug)
         project = Project(
@@ -57,11 +63,10 @@ class ProjectService:
         self.db.add(project)
         self.db.flush()
 
-        # Creator admin gets manager membership for consistent project-level ACL UX.
         self.db.add(
             ProjectMembership(
                 project_id=project.id,
-                user_id=actor.id,
+                user_id=owner.id,
                 role=ProjectMembershipRoleEnum.MANAGER.value,
                 is_active=True,
                 created_by_user_id=actor.id,
@@ -116,16 +121,79 @@ class ProjectService:
             select(ProjectMembership, User)
             .join(User, User.id == ProjectMembership.user_id)
             .where(ProjectMembership.project_id == project_id)
-            .order_by(User.display_name.asc(), User.username.asc())
+            .order_by(
+                case(
+                    (ProjectMembership.role == ProjectMembershipRoleEnum.MANAGER.value, 0),
+                    (ProjectMembership.role == ProjectMembershipRoleEnum.CONTRIBUTOR.value, 1),
+                    else_=2,
+                ),
+                User.display_name.asc(),
+                User.username.asc(),
+            )
         ).all()
         pairs = [(row[0], row[1]) for row in rows]
         return pairs, len(pairs)
+
+    def list_assignable_users(self, *, project_id: str, actor: User, search: str | None = None) -> tuple[list[User], int]:
+        _project, _membership = self.access.require_project_role(
+            project_id=project_id,
+            user=actor,
+            minimum_role="manager",
+            allow_inactive_project=True,
+        )
+        existing_member_ids = list(
+            self.db.scalars(select(ProjectMembership.user_id).where(ProjectMembership.project_id == project_id)).all()
+        )
+        stmt = select(User).where(User.is_active.is_(True))
+        if existing_member_ids:
+            stmt = stmt.where(User.id.notin_(existing_member_ids))
+        if search:
+            pattern = f"%{search.strip()}%"
+            if pattern != "%%":
+                stmt = stmt.where(
+                    or_(
+                        User.username.ilike(pattern),
+                        User.email.ilike(pattern),
+                        User.display_name.ilike(pattern),
+                    )
+                )
+        items = list(self.db.scalars(stmt.order_by(User.display_name.asc(), User.username.asc())).all())
+        return items, len(items)
+
+    def _count_active_managers(self, *, project_id: str) -> int:
+        rows = self.db.scalars(
+            select(ProjectMembership).where(
+                ProjectMembership.project_id == project_id,
+                ProjectMembership.is_active.is_(True),
+                ProjectMembership.role == ProjectMembershipRoleEnum.MANAGER.value,
+            )
+        ).all()
+        return len(list(rows))
+
+    def _would_remove_last_active_manager(
+        self,
+        *,
+        membership: ProjectMembership,
+        next_role: str | None = None,
+        next_is_active: bool | None = None,
+    ) -> bool:
+        current_role = membership.role.value if hasattr(membership.role, "value") else str(membership.role)
+        current_is_active = bool(membership.is_active)
+        resulting_role = next_role or current_role
+        resulting_is_active = current_is_active if next_is_active is None else bool(next_is_active)
+        currently_active_manager = current_role == ProjectMembershipRoleEnum.MANAGER.value and current_is_active
+        remains_active_manager = resulting_role == ProjectMembershipRoleEnum.MANAGER.value and resulting_is_active
+        if not currently_active_manager or remains_active_manager:
+            return False
+        return self._count_active_managers(project_id=membership.project_id) <= 1
 
     def add_member(self, *, project_id: str, actor: User, user_id: str, role: str, is_active: bool = True) -> ProjectMembership:
         _project, _membership = self.access.require_project_role(project_id=project_id, user=actor, minimum_role="manager", allow_inactive_project=True)
         user = self.db.get(User, user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
+        if not user.is_active:
+            raise HTTPException(status_code=400, detail="Inactive users cannot be assigned to a project")
         existing = self.db.scalar(
             select(ProjectMembership).where(ProjectMembership.project_id == project_id, ProjectMembership.user_id == user_id).limit(1)
         )
@@ -151,6 +219,8 @@ class ProjectService:
         )
         if membership is None:
             raise HTTPException(status_code=404, detail="Project membership not found")
+        if self._would_remove_last_active_manager(membership=membership, next_role=role, next_is_active=is_active):
+            raise HTTPException(status_code=400, detail="Project must retain at least one active manager")
         if role is not None:
             membership.role = ProjectMembershipRoleEnum(role).value
         if is_active is not None:
@@ -167,6 +237,8 @@ class ProjectService:
         )
         if membership is None:
             raise HTTPException(status_code=404, detail="Project membership not found")
+        if self._would_remove_last_active_manager(membership=membership):
+            raise HTTPException(status_code=400, detail="Project must retain at least one active manager")
         self.db.delete(membership)
         self.db.flush()
         return membership
@@ -175,4 +247,10 @@ class ProjectService:
         existing = self.db.scalar(select(Project).where(Project.deleted_at.is_(None)).limit(1))
         if existing:
             return existing
-        return self.create_project(actor=actor, name=name, slug=None, description="Bootstrap project")
+        return self.create_project(
+            actor=actor,
+            name=name,
+            owner_user_id=actor.id,
+            slug=None,
+            description="Bootstrap project",
+        )

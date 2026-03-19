@@ -74,7 +74,7 @@ export function AppNavDrawer({
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             {showHeaderBrand ? (
-              <div className="text-[11px] uppercase tracking-[0.18em] text-white/55">AIRAGChat</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-white/55">OpenRAG</div>
             ) : null}
             <div className="mt-1 text-base font-semibold text-white">{title}</div>
           </div>

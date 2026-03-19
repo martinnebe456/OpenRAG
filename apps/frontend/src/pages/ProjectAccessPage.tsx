@@ -27,14 +27,6 @@ type ProjectMember = {
   is_active: boolean;
 };
 
-type UserRow = {
-  id: string;
-  username: string;
-  email: string;
-  display_name: string;
-  is_active: boolean;
-};
-
 type AssignableUser = {
   id: string;
   username: string;
@@ -43,48 +35,43 @@ type AssignableUser = {
   is_active: boolean;
 };
 
-export function AdminProjectsPage() {
+export function ProjectAccessPage() {
   const qc = useQueryClient();
   const addToast = useUiStore((s) => s.addToast);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-
-  const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectDescription, setNewProjectDescription] = useState("");
-  const [newProjectOwnerUserId, setNewProjectOwnerUserId] = useState("");
-
   const [isEditProjectOpen, setIsEditProjectOpen] = useState(false);
   const [editProjectName, setEditProjectName] = useState("");
   const [editProjectDescription, setEditProjectDescription] = useState("");
-  const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
-
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [memberUserId, setMemberUserId] = useState("");
   const [memberRole, setMemberRole] = useState<"viewer" | "contributor" | "manager">("viewer");
+  const [assignableSearch, setAssignableSearch] = useState("");
   const [memberToRemove, setMemberToRemove] = useState<ProjectMember | null>(null);
 
   const projectsQuery = useQuery({
-    queryKey: ["admin-projects"],
+    queryKey: ["projects"],
     queryFn: async () => apiClient.get<{ items: ProjectRow[] }>("/projects"),
   });
-  const usersQuery = useQuery({
-    queryKey: ["admin-users-for-projects"],
-    queryFn: async () => apiClient.get<{ items: UserRow[] }>("/users"),
-  });
-  const assignableUsersQuery = useQuery({
-    queryKey: ["project-assignable-users", selectedProjectId],
-    queryFn: async () => {
-      if (!selectedProjectId) return { items: [] as AssignableUser[] };
-      return apiClient.get<{ items: AssignableUser[] }>(`/projects/${selectedProjectId}/assignable-users`);
-    },
-    enabled: isAddMemberOpen && !!selectedProjectId,
-  });
+
+  const manageableProjects = useMemo(
+    () => (projectsQuery.data?.items ?? []).filter((project) => project.my_role === "manager"),
+    [projectsQuery.data],
+  );
 
   useEffect(() => {
-    if (!selectedProjectId && projectsQuery.data?.items?.length) {
-      setSelectedProjectId(projectsQuery.data.items[0].id);
+    if (!manageableProjects.length) {
+      setSelectedProjectId(null);
+      return;
     }
-  }, [projectsQuery.data, selectedProjectId]);
+    if (!selectedProjectId || !manageableProjects.some((project) => project.id === selectedProjectId)) {
+      setSelectedProjectId(manageableProjects[0].id);
+    }
+  }, [manageableProjects, selectedProjectId]);
+
+  const selectedProject = useMemo(
+    () => manageableProjects.find((project) => project.id === selectedProjectId) ?? null,
+    [manageableProjects, selectedProjectId],
+  );
 
   const membersQuery = useQuery({
     queryKey: ["project-members", selectedProjectId],
@@ -95,28 +82,15 @@ export function AdminProjectsPage() {
     enabled: !!selectedProjectId,
   });
 
-  const selectedProject = useMemo(
-    () => (projectsQuery.data?.items ?? []).find((p) => p.id === selectedProjectId) ?? null,
-    [projectsQuery.data, selectedProjectId],
-  );
-
-  const createProjectMutation = useMutation({
-    mutationFn: async () =>
-      apiClient.post<ProjectRow>("/projects", {
-        name: newProjectName,
-        owner_user_id: newProjectOwnerUserId,
-        description: newProjectDescription || null,
-      }),
-    onSuccess: async (project) => {
-      addToast({ title: "Project created", message: project.name, kind: "success" });
-      setNewProjectName("");
-      setNewProjectDescription("");
-      setNewProjectOwnerUserId("");
-      setIsCreateProjectOpen(false);
-      await qc.invalidateQueries({ queryKey: ["admin-projects"] });
-      setSelectedProjectId(project.id);
+  const assignableUsersQuery = useQuery({
+    queryKey: ["project-assignable-users", selectedProjectId, assignableSearch],
+    queryFn: async () => {
+      if (!selectedProjectId) return { items: [] as AssignableUser[] };
+      const search = assignableSearch.trim();
+      const suffix = search ? `?search=${encodeURIComponent(search)}` : "";
+      return apiClient.get<{ items: AssignableUser[] }>(`/projects/${selectedProjectId}/assignable-users${suffix}`);
     },
-    onError: (e) => addToast({ title: "Create project failed", message: (e as Error).message, kind: "error" }),
+    enabled: isAddMemberOpen && !!selectedProjectId,
   });
 
   const updateProjectMutation = useMutation({
@@ -127,23 +101,9 @@ export function AdminProjectsPage() {
     onSuccess: async () => {
       addToast({ title: "Project updated", kind: "success" });
       setIsEditProjectOpen(false);
-      await qc.invalidateQueries({ queryKey: ["admin-projects"] });
+      await qc.invalidateQueries({ queryKey: ["projects"] });
     },
-    onError: (e) => addToast({ title: "Project update failed", message: (e as Error).message, kind: "error" }),
-  });
-
-  const deleteProjectMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedProjectId) throw new Error("No project selected");
-      return apiClient.delete(`/projects/${selectedProjectId}`);
-    },
-    onSuccess: async () => {
-      addToast({ title: "Project archived", kind: "success" });
-      setConfirmArchiveOpen(false);
-      setSelectedProjectId(null);
-      await qc.invalidateQueries({ queryKey: ["admin-projects"] });
-    },
-    onError: (e) => addToast({ title: "Project delete failed", message: (e as Error).message, kind: "error" }),
+    onError: (error) => addToast({ title: "Project update failed", message: (error as Error).message, kind: "error" }),
   });
 
   const addMemberMutation = useMutation({
@@ -160,12 +120,12 @@ export function AdminProjectsPage() {
       addToast({ title: "Member added", kind: "success" });
       setMemberUserId("");
       setMemberRole("viewer");
+      setAssignableSearch("");
       setIsAddMemberOpen(false);
       await qc.invalidateQueries({ queryKey: ["project-members", selectedProjectId] });
-      await qc.invalidateQueries({ queryKey: ["admin-projects"] });
       await qc.invalidateQueries({ queryKey: ["project-assignable-users", selectedProjectId] });
     },
-    onError: (e) => addToast({ title: "Add member failed", message: (e as Error).message, kind: "error" }),
+    onError: (error) => addToast({ title: "Add member failed", message: (error as Error).message, kind: "error" }),
   });
 
   const updateMemberMutation = useMutation({
@@ -176,8 +136,9 @@ export function AdminProjectsPage() {
     onSuccess: async () => {
       addToast({ title: "Membership updated", kind: "success" });
       await qc.invalidateQueries({ queryKey: ["project-members", selectedProjectId] });
+      await qc.invalidateQueries({ queryKey: ["projects"] });
     },
-    onError: (e) => addToast({ title: "Membership update failed", message: (e as Error).message, kind: "error" }),
+    onError: (error) => addToast({ title: "Membership update failed", message: (error as Error).message, kind: "error" }),
   });
 
   const deleteMemberMutation = useMutation({
@@ -191,29 +152,14 @@ export function AdminProjectsPage() {
       await qc.invalidateQueries({ queryKey: ["project-members", selectedProjectId] });
       await qc.invalidateQueries({ queryKey: ["project-assignable-users", selectedProjectId] });
     },
-    onError: (e) => addToast({ title: "Remove member failed", message: (e as Error).message, kind: "error" }),
+    onError: (error) => addToast({ title: "Remove member failed", message: (error as Error).message, kind: "error" }),
   });
-
-  const activeUsers = useMemo(() => (usersQuery.data?.items ?? []).filter((u) => u.is_active), [usersQuery.data]);
-  const assignableUsers = assignableUsersQuery.data?.items ?? [];
 
   return (
     <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-      <PageCard
-        title="Projects"
-        subtitle="Create projects and manage lifecycle and access."
-        actions={
-          <button
-            type="button"
-            onClick={() => setIsCreateProjectOpen(true)}
-            className="rounded-lg bg-ink px-3 py-2 text-sm font-medium text-paper"
-          >
-            New Project
-          </button>
-        }
-      >
+      <PageCard title="Managed Projects" subtitle="Projects where you are responsible for membership and access.">
         <div className="space-y-2">
-          {(projectsQuery.data?.items ?? []).map((project) => (
+          {manageableProjects.map((project) => (
             <button
               key={project.id}
               type="button"
@@ -230,9 +176,9 @@ export function AdminProjectsPage() {
               </div>
             </button>
           ))}
-          {(projectsQuery.data?.items.length ?? 0) === 0 && (
+          {!projectsQuery.isLoading && manageableProjects.length === 0 && (
             <div className="rounded-xl border border-dashed border-ink/10 p-5 text-sm text-ink/60">
-              No projects yet.
+              You do not manage any project yet. An admin must first create the project and assign you as its owner.
             </div>
           )}
         </div>
@@ -241,38 +187,20 @@ export function AdminProjectsPage() {
       <div className="grid gap-4">
         <PageCard
           title="Project Details"
-          subtitle={selectedProject ? "Quick edits and archive actions" : "Select a project"}
+          subtitle={selectedProject ? "Owner-level metadata for this project" : "Select a managed project"}
           actions={
             selectedProject ? (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateProjectMutation.mutate({ is_active: !selectedProject.is_active })
-                  }
-                  className="rounded-lg border border-ink/12 bg-white/85 px-3 py-2 text-sm"
-                >
-                  {selectedProject.is_active ? "Deactivate" : "Activate"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditProjectName(selectedProject.name);
-                    setEditProjectDescription(selectedProject.description ?? "");
-                    setIsEditProjectOpen(true);
-                  }}
-                  className="rounded-lg border border-ink/12 bg-white/85 px-3 py-2 text-sm"
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmArchiveOpen(true)}
-                  className="rounded-lg border border-[#FADA7A]/80 bg-[#F5F0CD]/95 px-3 py-2 text-sm text-ink"
-                >
-                  Archive
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditProjectName(selectedProject.name);
+                  setEditProjectDescription(selectedProject.description ?? "");
+                  setIsEditProjectOpen(true);
+                }}
+                className="rounded-lg border border-ink/12 bg-white/85 px-3 py-2 text-sm"
+              >
+                Edit
+              </button>
             ) : undefined
           }
         >
@@ -287,8 +215,7 @@ export function AdminProjectsPage() {
                 <span className="font-semibold text-ink">Slug:</span> {selectedProject.slug}
               </div>
               <div>
-                <span className="font-semibold text-ink">Status:</span>{" "}
-                {selectedProject.is_active ? "active" : "inactive"}
+                <span className="font-semibold text-ink">Status:</span> {selectedProject.is_active ? "active" : "inactive"}
               </div>
               {selectedProject.description && (
                 <div className="mt-2">
@@ -301,7 +228,7 @@ export function AdminProjectsPage() {
 
         <PageCard
           title="Project Members"
-          subtitle={selectedProject ? `ACL for ${selectedProject.name}` : "Select a project to manage access"}
+          subtitle={selectedProject ? `Existing users with access to ${selectedProject.name}` : "Select a project to manage members"}
           actions={
             selectedProjectId ? (
               <button
@@ -338,12 +265,7 @@ export function AdminProjectsPage() {
                       <td className="px-2 py-2">
                         <select
                           value={member.role}
-                          onChange={(e) =>
-                            updateMemberMutation.mutate({
-                              userId: member.user_id,
-                              body: { role: e.target.value },
-                            })
-                          }
+                          onChange={(e) => updateMemberMutation.mutate({ userId: member.user_id, body: { role: e.target.value } })}
                           className="rounded-md border border-ink/12 bg-white/85 px-2 py-1 text-xs"
                         >
                           <option value="viewer">viewer</option>
@@ -366,12 +288,7 @@ export function AdminProjectsPage() {
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            onClick={() =>
-                              updateMemberMutation.mutate({
-                                userId: member.user_id,
-                                body: { is_active: !member.membership_active },
-                              })
-                            }
+                            onClick={() => updateMemberMutation.mutate({ userId: member.user_id, body: { is_active: !member.membership_active } })}
                             className="rounded-md border border-ink/12 bg-white/85 px-2 py-1 text-xs"
                           >
                             {member.membership_active ? "Disable" : "Enable"}
@@ -398,58 +315,6 @@ export function AdminProjectsPage() {
           )}
         </PageCard>
       </div>
-
-      <FormDialog
-        open={isCreateProjectOpen}
-        onOpenChange={(open) => {
-          setIsCreateProjectOpen(open);
-          if (!open && !createProjectMutation.isPending) {
-            setNewProjectName("");
-            setNewProjectDescription("");
-            setNewProjectOwnerUserId("");
-          }
-        }}
-        title="Create project"
-        description="Create a new isolated project scope and assign its initial owner."
-        submitLabel="Create project"
-        isSubmitting={createProjectMutation.isPending}
-        onSubmit={() => {
-          if (!newProjectName.trim()) {
-            addToast({ title: "Name required", kind: "warning" });
-            return;
-          }
-          if (!newProjectOwnerUserId) {
-            addToast({ title: "Owner required", message: "Select an active user who will manage this project.", kind: "warning" });
-            return;
-          }
-          createProjectMutation.mutate();
-        }}
-      >
-        <input
-          value={newProjectName}
-          onChange={(e) => setNewProjectName(e.target.value)}
-          placeholder="Project name"
-          className="w-full rounded-lg border border-ink/12 bg-white px-3 py-2 text-sm"
-        />
-        <textarea
-          value={newProjectDescription}
-          onChange={(e) => setNewProjectDescription(e.target.value)}
-          placeholder="Description (optional)"
-          className="h-24 w-full rounded-lg border border-ink/12 bg-white px-3 py-2 text-sm"
-        />
-        <select
-          value={newProjectOwnerUserId}
-          onChange={(e) => setNewProjectOwnerUserId(e.target.value)}
-          className="w-full rounded-lg border border-ink/12 bg-white px-3 py-2 text-sm"
-        >
-          <option value="">Select initial owner</option>
-          {activeUsers.map((user) => (
-            <option key={user.id} value={user.id}>
-              {user.display_name} ({user.username})
-            </option>
-          ))}
-        </select>
-      </FormDialog>
 
       <FormDialog
         open={isEditProjectOpen}
@@ -490,6 +355,7 @@ export function AdminProjectsPage() {
           if (!open && !addMemberMutation.isPending) {
             setMemberUserId("");
             setMemberRole("viewer");
+            setAssignableSearch("");
           }
         }}
         title="Add project member"
@@ -504,15 +370,21 @@ export function AdminProjectsPage() {
           addMemberMutation.mutate();
         }}
       >
+        <input
+          value={assignableSearch}
+          onChange={(e) => setAssignableSearch(e.target.value)}
+          placeholder="Search existing users..."
+          className="w-full rounded-lg border border-ink/12 bg-white px-3 py-2 text-sm"
+        />
         <select
           value={memberUserId}
           onChange={(e) => setMemberUserId(e.target.value)}
           className="w-full rounded-lg border border-ink/12 bg-white px-3 py-2 text-sm"
         >
           <option value="">Select user</option>
-          {assignableUsers.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.display_name} ({u.username})
+          {(assignableUsersQuery.data?.items ?? []).map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.display_name} ({user.username})
             </option>
           ))}
         </select>
@@ -528,27 +400,12 @@ export function AdminProjectsPage() {
       </FormDialog>
 
       <ConfirmDialog
-        open={confirmArchiveOpen}
-        onOpenChange={setConfirmArchiveOpen}
-        title="Archive project"
-        description={selectedProject ? `Archive project ${selectedProject.name}?` : undefined}
-        confirmLabel="Archive"
-        tone="warning"
-        isPending={deleteProjectMutation.isPending}
-        onConfirm={() => deleteProjectMutation.mutate()}
-      />
-
-      <ConfirmDialog
         open={!!memberToRemove}
         onOpenChange={(open) => {
           if (!open) setMemberToRemove(null);
         }}
         title="Remove member"
-        description={
-          memberToRemove
-            ? `Remove ${memberToRemove.display_name} from this project?`
-            : undefined
-        }
+        description={memberToRemove ? `Remove ${memberToRemove.display_name} from this project?` : undefined}
         confirmLabel="Remove"
         tone="warning"
         isPending={deleteMemberMutation.isPending}

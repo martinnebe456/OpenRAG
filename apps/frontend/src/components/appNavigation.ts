@@ -8,6 +8,7 @@ export type AppNavItem = {
 export const BASE_NAV_ITEMS: AppNavItem[] = [
   { label: "Chat", path: "/chat", section: "main" },
   { label: "Document Library", path: "/documents", section: "main" },
+  { label: "Project Access", path: "/projects/access", section: "main" },
   { label: "Profile", path: "/profile", section: "main" },
 ];
 
@@ -27,4 +28,3 @@ export function getAppNavigationSections(isAdmin: boolean) {
     admin: isAdmin ? ADMIN_NAV_ITEMS : [],
   };
 }
-

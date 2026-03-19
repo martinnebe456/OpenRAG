@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDMixin
-from app.db.models.enums import DocumentStatusEnum, RoleEnum
+from app.db.models.enums import DocumentStatusEnum, RoleEnum, db_enum
 
 
 class Document(UUIDMixin, TimestampMixin, Base):
@@ -21,7 +21,7 @@ class Document(UUIDMixin, TimestampMixin, Base):
     file_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     storage_path: Mapped[str] = mapped_column(String(1024), nullable=False)
     status: Mapped[DocumentStatusEnum] = mapped_column(
-        Enum(DocumentStatusEnum), nullable=False, default=DocumentStatusEnum.UPLOADED
+        db_enum(DocumentStatusEnum, name="documentstatusenum"), nullable=False, default=DocumentStatusEnum.UPLOADED
     )
     status_message: Mapped[str | None] = mapped_column(String(512), nullable=True)
     error_details_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
@@ -32,7 +32,7 @@ class Document(UUIDMixin, TimestampMixin, Base):
     parser_metadata_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     processing_progress_json: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
     visibility_scope: Mapped[str] = mapped_column(String(64), nullable=False, default="workspace")
-    min_role: Mapped[RoleEnum] = mapped_column(Enum(RoleEnum), nullable=False, default=RoleEnum.USER)
+    min_role: Mapped[RoleEnum] = mapped_column(db_enum(RoleEnum, name="roleenum"), nullable=False, default=RoleEnum.USER)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

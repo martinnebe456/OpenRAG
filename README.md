@@ -1,10 +1,10 @@
-# AIRAGChat
+# OpenRAG
 
 Language: **English** | [Čeština](README-CS.md) | [Deutsch](README-DE.md)
 
 Proof of Concept (PoC) for a self-service chatbot over company documents.
 
-AIRAGChat is a local, self-hosted RAG application built for internal document Q&A workflows. It combines a React frontend, FastAPI backend, PostgreSQL + Qdrant storage, async ingestion workers, and optional observability tooling.
+OpenRAG is a local, self-hosted RAG application built for internal document Q&A workflows. It combines a React frontend, FastAPI backend, PostgreSQL + Qdrant storage, async ingestion workers, and optional observability tooling.
 
 ## PoC Scope
 
@@ -29,7 +29,7 @@ Current runtime mode is OpenAI-only (`openai_api`).
 ## Repository Layout
 
 ```text
-AIRAGChat/
+OpenRAG/
 |- apps/
 |  |- backend/                     # FastAPI app, workers, DB models/migrations, tests
 |  `- frontend/                    # React + Vite SPA

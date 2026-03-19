@@ -11,7 +11,7 @@ type TopHeaderProps = {
 };
 
 export function TopHeader({
-  appName = "AIRAGChat",
+  appName = "OpenRAG",
   subtitle = "OpenAI RAG Platform",
   userName,
   userRole,

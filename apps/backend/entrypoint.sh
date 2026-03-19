@@ -2,13 +2,13 @@
 set -euo pipefail
 
 # -------------------------------------------------------------------
-# AIRAGChat Backend Entrypoint
+# OpenRAG Backend Entrypoint
 # 1. Validates critical env vars
 # 2. Runs Alembic migrations
 # 3. Starts the application (uvicorn or celery, depending on $1)
 # -------------------------------------------------------------------
 
-echo "[entrypoint] Starting AIRAGChat backend (mode=${1:-api})..."
+echo "[entrypoint] Starting OpenRAG backend (mode=${1:-api})..."
 
 # -- 1. Validate required environment --------------------------------
 if [ -z "${APP_SECRETS_MASTER_KEY:-}" ]; then
@@ -22,10 +22,10 @@ if [ -z "${DATABASE_URL:-}" ]; then
     exit 1
 fi
 
-# -- 2. Run database migrations (only for api mode) ------------------
+# -- 2. Run database migrations for API modes -------------------------
 MODE="${1:-api}"
 
-if [ "$MODE" = "api" ]; then
+if [ "$MODE" = "api" ] || [ "$MODE" = "api-dev" ]; then
     echo "[entrypoint] Running Alembic migrations..."
     alembic upgrade head
     echo "[entrypoint] Migrations complete."

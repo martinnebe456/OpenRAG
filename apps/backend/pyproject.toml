@@ -1,7 +1,7 @@
 [project]
-name = "airagchat-backend"
+name = "openrag-backend"
 version = "0.1.0"
-description = "AIRAGChat FastAPI backend"
+description = "OpenRAG FastAPI backend"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.13.2",

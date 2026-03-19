@@ -8,6 +8,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { ChatPage } from "../pages/ChatPage";
 import { DocumentsPage } from "../pages/DocumentsPage";
 import { ProfilePage } from "../pages/ProfilePage";
+import { ProjectAccessPage } from "../pages/ProjectAccessPage";
 import { AdminUsersPage } from "../pages/AdminUsersPage";
 import { AdminProjectsPage } from "../pages/AdminProjectsPage";
 import { AdminSettingsPage } from "../pages/AdminSettingsPage";
@@ -46,6 +47,7 @@ export function AppRouter() {
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="/documents" element={<DocumentsPage />} />
+        <Route path="/projects/access" element={<ProjectAccessPage />} />
         <Route path="/profile" element={<ProfilePage />} />
 
         <Route

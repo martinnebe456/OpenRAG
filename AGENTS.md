@@ -8,11 +8,11 @@
 ## META
 
 - **ID:** PROJ-001
-- **Project:** AIRAGChat
+- **Project:** OpenRAG
 - **Purpose:** Proof-of-Concept self-hosted RAG chatbot for internal document Q&A
 - **License:** GNU GPL v3
 - **Status:** PoC / MVP — OpenAI-only runtime
-- **Working dir:** `/Users/mnebehay/Documents/Code/AIRAGChat`
+- **Working dir:** `/Users/mnebehay/Documents/Code/OpenRAG`
 
 ---
 

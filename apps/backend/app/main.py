@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
 def create_app() -> FastAPI:
     app_settings = get_settings()
     app = FastAPI(
-        title="AIRAGChat API",
+        title="OpenRAG API",
         version="0.1.0",
         docs_url="/docs",
         redoc_url="/redoc",

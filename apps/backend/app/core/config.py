@@ -11,7 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    app_name: str = Field(default="AIRAGChat", alias="APP_NAME")
+    app_name: str = Field(default="OpenRAG", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
     app_debug: bool = Field(default=True, alias="APP_DEBUG")
     log_level: str = Field(default="INFO", alias="APP_LOG_LEVEL")
@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     rate_limit_chat_per_min: int = Field(default=30, alias="APP_RATE_LIMIT_CHAT_PER_MIN")
 
     database_url: str = Field(
-        default="postgresql+psycopg://airagchat:airagchat@postgres:5432/airagchat",
+        default="postgresql+psycopg://openrag:openrag@postgres:5432/openrag",
         alias="DATABASE_URL",
     )
     redis_url: str = Field(default="redis://redis:6379/0", alias="REDIS_URL")
@@ -75,7 +75,7 @@ class Settings(BaseSettings):
         default="http://otel-collector:4317",
         alias="OTEL_EXPORTER_OTLP_ENDPOINT",
     )
-    otel_service_name: str = Field(default="airagchat-backend", alias="OTEL_SERVICE_NAME")
+    otel_service_name: str = Field(default="openrag-backend", alias="OTEL_SERVICE_NAME")
     otel_sampler: str = Field(default="parentbased_traceidratio", alias="OTEL_TRACES_SAMPLER")
     otel_sampler_arg: float = Field(default=1.0, alias="OTEL_TRACES_SAMPLER_ARG")
 

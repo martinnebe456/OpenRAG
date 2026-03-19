@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps.auth import get_current_user
@@ -8,6 +8,8 @@ from app.db.models import Project, ProjectMembership, User
 from app.db.session import get_db
 from app.schemas.common import MessageResponse
 from app.schemas.projects import (
+    ProjectAssignableUserListResponse,
+    ProjectAssignableUserResponse,
     ProjectCreateRequest,
     ProjectListResponse,
     ProjectMemberCreateRequest,
@@ -72,6 +74,7 @@ def create_project(
     project = service.create_project(
         actor=current_user,
         name=payload.name,
+        owner_user_id=payload.owner_user_id,
         slug=payload.slug,
         description=payload.description,
     )
@@ -96,6 +99,29 @@ def get_project(
 ) -> ProjectResponse:
     project, membership = ProjectService(db).get_project_for_user(project_id=project_id, user=current_user)
     return _project_response(project, membership)
+
+
+@router.get("/{project_id}/assignable-users", response_model=ProjectAssignableUserListResponse)
+def list_assignable_users(
+    project_id: str,
+    search: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectAssignableUserListResponse:
+    items, total = ProjectService(db).list_assignable_users(project_id=project_id, actor=current_user, search=search)
+    return ProjectAssignableUserListResponse(
+        items=[
+            ProjectAssignableUserResponse(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                display_name=user.display_name,
+                is_active=user.is_active,
+            )
+            for user in items
+        ],
+        total=total,
+    )
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -227,4 +253,3 @@ def delete_project_member(
     )
     db.commit()
     return MessageResponse(message="Project member removed")
-

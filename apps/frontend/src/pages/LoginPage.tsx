@@ -47,7 +47,7 @@ export function LoginPage() {
     <div className="grid min-h-screen place-items-center p-4 md:p-6">
       <div className="surface-glass w-full max-w-md rounded-[1.35rem] border border-white/60 p-6 backdrop-blur-xl md:p-7">
         <div className="mb-6">
-          <div className="text-[11px] uppercase tracking-[0.16em] text-ink/60">AIRAGChat</div>
+          <div className="text-[11px] uppercase tracking-[0.16em] text-ink/60">OpenRAG</div>
           <h1 className="mt-1 text-2xl font-semibold text-ink">OpenAI RAG Login</h1>
           <p className="mt-2 text-sm text-ink/65">
             Sign in with a local user account. Refresh tokens are stored in an HttpOnly cookie.

@@ -1,6 +1,6 @@
-# AIRAGChat Sample Document
+# OpenRAG Sample Document
 
-AIRAGChat is a local self-hosted RAG platform.
+OpenRAG is a local self-hosted RAG platform.
 
 It supports:
 
